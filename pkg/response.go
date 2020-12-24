@@ -15,14 +15,12 @@ type WorkerStatus struct {
 
 func NewResponse(ID string, Status string, ResponseCode int, Message string, w *http.ResponseWriter) {
 	(*w).WriteHeader(ResponseCode)
-
 	respObj := &WorkerStatus{
 		ID:           ID,
 		Status:       Status,
 		ResponseCode: ResponseCode,
 		Message:      Message,
 	}
-
 	if err := json.NewEncoder((*w)).Encode(respObj); err != nil {
 		fmt.Fprintf((*w), "Server Error. err=%v", err)
 	}

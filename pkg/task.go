@@ -1,6 +1,7 @@
 package pkg
 
 import (
+	"fmt"
 	"sync"
 	"time"
 
@@ -10,10 +11,12 @@ import (
 )
 
 type Task struct {
-	id          ulid.ULID
-	state       STATE
-	logger      log.Logger
-	fn          func(int, log.Logger, time.Duration) error
+	id     ulid.ULID
+	state  STATE
+	logger log.Logger
+	fn     func(int, log.Logger, time.Duration) error
+	// Condition for running the long running task.
+	// Can be substituted with a completion check once task is completed
 	maxDuration time.Duration
 	// duration for which task gets interrupted or yields
 	delta time.Duration
@@ -43,6 +46,8 @@ func (t *Task) Run(signalState chan STATE, errorChan chan error, wg *sync.WaitGr
 				level.Debug(t.logger).Log("msg", "task has been paused..")
 			case STOP:
 				level.Debug(t.logger).Log("msg", "task has been terminated..")
+				errorChan <- fmt.Errorf("the task has been prematurely terminated")
+				t.state = NOT_RUNNING
 				return
 			}
 		default:
@@ -63,6 +68,7 @@ func (t *Task) Run(signalState chan STATE, errorChan chan error, wg *sync.WaitGr
 			dr++
 		}
 	}
+	t.state = COMPLETED
 }
 
 func NewTask(id ulid.ULID, logger log.Logger, fn func(int, log.Logger, time.Duration) error, dur time.Duration, delta time.Duration) *Task {

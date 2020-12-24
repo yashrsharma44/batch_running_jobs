@@ -1,12 +1,18 @@
 package api
 
 import (
+	"net/http"
+
 	"github.com/gorilla/mux"
 	"github.com/yashrsharma44/batch_running_jobs/pkg"
 )
 
 func RegisterRoutes(r *mux.Router, srvComp *pkg.ServerComponent) {
 	r.Use(mux.CORSMethodMiddleware(r))
+
+	// Handler for main page
+	http.Handle("/", http.FileServer(http.Dir("./static")))
+	r.PathPrefix("/").HandlerFunc(pkg.PermissiveCORS).Methods("GET", "OPTIONS")
 
 	// General Server API
 	r.HandleFunc("/new-job/", pkg.PermissiveCORSMiddleware(srvComp.CreateNewJob)).Methods("GET", "OPTIONS")
@@ -22,6 +28,4 @@ func RegisterRoutes(r *mux.Router, srvComp *pkg.ServerComponent) {
 	// // Running a task API
 	r.HandleFunc("/job/new/{worker-id}", pkg.PermissiveCORSMiddleware(srvComp.HandleJob)).Methods("POST", "OPTIONS")
 
-	// Handler for main page
-	r.PathPrefix("/").HandlerFunc(pkg.PermissiveCORS).Methods("GET", "OPTIONS")
 }

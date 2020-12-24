@@ -84,8 +84,11 @@ func (schd *Scheduler) CheckTaskPresent(id ulid.ULID) bool {
 	return ok
 }
 
-func (schd *Scheduler) GetState(id ulid.ULID) STATE {
-	return schd.taskList[id].State()
+func (schd *Scheduler) GetState(id ulid.ULID) (STATE, error) {
+	if ok := schd.CheckTaskPresent(id); !ok {
+		return NOT_RUNNING, fmt.Errorf("no task exists for the ID=%v", id)
+	}
+	return schd.taskList[id].State(), nil
 }
 
 func (schd *Scheduler) RemoveTask(id ulid.ULID) error {

@@ -12,6 +12,12 @@ func PermissiveCORS(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Access-Control-Allow-Methods", "POST, GET, OPTIONS, PUT, DELETE")
 	w.Header().Set("Access-Control-Allow-Headers", "Accept, Content-Type, Content-Length, Accept-Encoding, X-CSRF-Token, Authorization, Bearer")
+
+	p := "." + r.URL.Path
+	if p == "./" {
+		p = "./static/index.html"
+	}
+	http.ServeFile(w, r, p)
 }
 
 func PermissiveCORSMiddleware(next func(http.ResponseWriter, *http.Request)) func(http.ResponseWriter, *http.Request) {

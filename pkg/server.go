@@ -24,6 +24,7 @@ func (comp *ServerComponent) CreateNewJob(w http.ResponseWriter, r *http.Request
 	w.Header().Set("Content-Type", "application/json; charset=UTF-8")
 
 	// Slot is available, return a worker id which is enabled for 5 minutes.
+	// Validity of the worker id checked when a job is submitted.
 	worker_id := getULID().String()
 
 	NewResponse(worker_id, MapStatetoMsg[NOT_RUNNING], http.StatusOK, "Slot is available, ID will expire in 5 minutes.", &w)
@@ -78,22 +79,35 @@ func (comp *ServerComponent) ModifyWorkerStatus(w http.ResponseWriter, r *http.R
 		NewResponse(worker_id, "", http.StatusBadRequest, fmt.Sprintf("worker id is invalid. err=%v", err), &w)
 		return
 	}
-	NewState := MapParamtoState[id["new-job-status"]]
 
-	if NewState == comp.schd.GetState(worker_ulid) {
+	NewState := MapParamtoState[id["new-job-status"]]
+	OldState, err := comp.schd.GetState(worker_ulid)
+
+	// Check if the worker id hasn't been used after being terminated.
+	if err != nil {
+		NewResponse(worker_id, MapStatetoMsg[NOT_RUNNING], http.StatusBadRequest, fmt.Sprintf("Bad Request: %v", err), &w)
+		return
+	}
+
+	// Make sure we dont allow multiple requests for state change.
+	if NewState == OldState {
 		NewResponse(worker_id, MapStatetoMsg[NewState], http.StatusBadRequest, "new state of the task is the same as that of the old state", &w)
 		return
 	}
 
-	if NewState == STOP {
-		comp.schd.DecrementTaskCount()
-	}
-
+	// Modify the state change, return error if any.
 	if err := comp.schd.ModifyState(worker_ulid, NewState); err != nil {
 		NewResponse(worker_id, MapStatetoMsg[STOP], http.StatusBadRequest, fmt.Sprintf("%v", err), &w)
 		return
 	}
+
 	NewResponse(worker_id, MapStatetoMsg[comp.schd.taskList[worker_ulid].State()], http.StatusOK, "changed the state of the task", &w)
+
+	// If the task is terminated, remove it from the scheduler and increase task count.
+	if NewState == STOP {
+		_ = comp.schd.RemoveTask(worker_ulid)
+		comp.schd.IncrementTaskCount()
+	}
 }
 
 // All the task handlers share the same logic.
@@ -120,12 +134,27 @@ func (comp *ServerComponent) taskHelper(w *http.ResponseWriter, r *http.Request,
 		NewResponse("", MapStatetoMsg[NOT_RUNNING], http.StatusServiceUnavailable, "Server has no available slots, try again later.", w)
 		return
 	}
+
+	// Check if the task has been started before
+	if ok := comp.schd.CheckTaskPresent(worker_ulid); ok {
+		state, _ := comp.schd.GetState(worker_ulid)
+		NewResponse(worker_id, MapStatetoMsg[state], http.StatusBadRequest, "the task has already been started", w)
+		return
+	}
+
+	// Check if the worker id has not expired
+	if err := checkTimeValid(worker_ulid); err != nil {
+		NewResponse(worker_id, MapStatetoMsg[NOT_RUNNING], http.StatusBadRequest, "worker id has expired, please use another one", w)
+		return
+	}
+
 	// Initialise the count for the new task
 	comp.schd.DecrementTaskCount()
 
 	// Create a task
 	// Assume we need to run a task which has 10,000 entries to be uploaded, and each entries take 1 second.
 	// This is totally modifiable from the client side, although for demonstration purposes, we have simulated this
+	// The total time can be changed to completion of the task, although it should be interruptible.
 	taskObj := NewTask(worker_ulid, comp.logger, fn, 10000*time.Second, 1*time.Second)
 
 	// Schedule it
@@ -136,9 +165,11 @@ func (comp *ServerComponent) taskHelper(w *http.ResponseWriter, r *http.Request,
 		return
 	}
 
-	// else return success
+	// else return success and remove the task from the scheduler
 	comp.schd.IncrementTaskCount()
-	NewResponse(worker_id, MapStatetoMsg[STOP], http.StatusOK, "Task has been successfully completed", w)
+	state, _ := comp.schd.GetState(worker_ulid)
+	_ = comp.schd.RemoveTask(worker_ulid)
+	NewResponse(worker_id, MapStatetoMsg[state], http.StatusOK, "Task has been successfully completed", w)
 
 }
 
