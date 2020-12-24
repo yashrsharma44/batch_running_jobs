@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"fmt"
 	"net/http"
 	"os"
 
@@ -31,7 +30,6 @@ func main() {
 	batchJob := pkg.NewServerComponent(srv, logger)
 
 	// Set up the routers
-	fmt.Printf("Pp")
 	api.RegisterRoutes(r, batchJob)
 
 	if err := srv.ListenAndServe(); err != nil {
