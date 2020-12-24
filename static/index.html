@@ -3,6 +3,24 @@
 
   <body>
     <h1>Upload documents</h1>
-    <code> </code>
+    <div>
+      <p>
+        Add in long running jobs and pause, resume and stop the task as per your
+        choice.
+      </p>
+      <p>
+        <b>POST</b> /upload/new/{worker_id} - Generate a new upload task with
+        POST request
+      </p>
+      <p>
+        <b>GET</b>
+        /upload/status/{worker_id} - Get the status of the task with the worker
+        id.
+      </p>
+      <p>
+        <b>POST</b>/upload/{worker_id}/{new_job_status} - Set/Interrupt the task
+        to Pause/Resume/Stop
+      </p>
+    </div>
   </body>
 </html>
